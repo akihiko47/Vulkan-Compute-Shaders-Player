@@ -28,21 +28,21 @@ VulkanEngine::~VulkanEngine() {
 
 
 void VulkanEngine::Init() {
-	std::cout << "Vulkan engine init\n";
+	spdlog::info("Renderer initialization started");
 
-	CreateWindow();
+	CreateSDLWindow();
 	InitVulkan();
 	InitSwapchain();
 	InitCommands();
 	InitSyncStructures();
 
 	m_isInitialized = true;
+
+	spdlog::info("Renderer initialized");
 }
 
 
 void VulkanEngine::Cleanup() {
-	std::cout << "Vulkan engine cleanup\n";
-
 	if (m_isInitialized) {
 		vkDeviceWaitIdle(m_device);
 
@@ -59,10 +59,12 @@ void VulkanEngine::Cleanup() {
 		vkDestroyInstance(m_instance, nullptr);
 		SDL_DestroyWindow(m_window);
 	}
+
+	spdlog::info("Renderer cleaned up");
 }
 
 
-void VulkanEngine::CreateWindow() {
+void VulkanEngine::CreateSDLWindow() {
 
 	// we want to use window and input systems from SDL
 	SDL_Init(SDL_INIT_VIDEO);

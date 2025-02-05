@@ -28,7 +28,7 @@ namespace vr {
 		void Cleanup();
 
 		// sdl window creation
-		void CreateWindow();
+		void CreateSDLWindow();
 
 		// vulkan initialization
 		void InitVulkan();

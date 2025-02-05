@@ -3,6 +3,7 @@ find_package(Vulkan REQUIRED)
 add_library(vkbootstrap STATIC)
 add_library(glm INTERFACE)
 add_library(vma INTERFACE)
+add_library(spdlog INTERFACE)
 
 add_library(stb_image INTERFACE)
 
@@ -18,6 +19,7 @@ target_link_libraries(vkbootstrap PUBLIC Vulkan::Vulkan $<$<BOOL:UNIX>:${CMAKE_D
 
 target_include_directories(vma INTERFACE vma)
 target_include_directories(glm INTERFACE glm)
+target_include_directories(spdlog INTERFACE spdlog)
 
 target_sources(tinyobjloader PRIVATE 
     tinyobjloader/tiny_obj_loader.h
