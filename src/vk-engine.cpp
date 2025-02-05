@@ -44,6 +44,12 @@ void VulkanEngine::Cleanup() {
 	std::cout << "Vulkan engine cleanup\n";
 
 	if (m_isInitialized) {
+		vkDeviceWaitIdle(m_device);
+
+		for (auto frame : m_frames) {
+			vkDestroyCommandPool(m_device, frame.commandPool, nullptr);
+		}
+
 		DestroySwapChain();
 
 		vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
@@ -119,6 +125,10 @@ void VulkanEngine::InitVulkan() {
 	vkb::Device vkbDevice = deviceBuilder.build().value();
 
 	m_device = vkbDevice.device;
+
+	// queues creation
+	m_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
+	m_graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
 }
 
 
@@ -160,9 +170,19 @@ void VulkanEngine::DestroySwapChain() {
 }
 
 
-
 void VulkanEngine::InitCommands() {
+	// create command pools for each frame in flight
+	// this flag allows us to reset individual command buffer
+	VkCommandPoolCreateInfo commandPoolInfo = vkinit::CommandPoolCreateInfo(m_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
+	for (int i = 0; i != FRAMES_IN_FLIGHT; ++i) {
+		VK_CHECK(vkCreateCommandPool(m_device, &commandPoolInfo, nullptr, &m_frames[i].commandPool));
+
+		// allocate command buffer using this command pool
+		VkCommandBufferAllocateInfo commandBufferInfo = vkinit::CommandBufferAllocateInfo(m_frames[i].commandPool);
+
+		VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferInfo, &m_frames[i].mainCommandBuffer));
+	}
 }
 
 

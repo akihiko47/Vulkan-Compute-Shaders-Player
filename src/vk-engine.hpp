@@ -3,6 +3,15 @@
 #include <vk-types.hpp>
 
 
+const uint32_t FRAMES_IN_FLIGHT = 2;
+
+// structures and command needed to draw one frame in flight
+struct FrameData {
+	VkCommandPool commandPool;
+	VkCommandBuffer mainCommandBuffer;
+};
+
+
 struct SDL_Window;
 
 namespace vr {
@@ -11,8 +20,10 @@ namespace vr {
 		VulkanEngine();
 		~VulkanEngine();
 
-		void Init();
 		void Run();
+
+	private:
+		void Init();
 		void Draw();
 		void Cleanup();
 
@@ -26,6 +37,9 @@ namespace vr {
 		void DestroySwapChain();
 		void InitCommands();
 		void InitSyncStructures();
+
+		// frames in flight
+		FrameData &GetCurrentFrame() { return m_frames[m_frameNumber % FRAMES_IN_FLIGHT]; }
 
 	private:
 		bool       m_isInitialized;
@@ -49,5 +63,13 @@ namespace vr {
 		std::vector<VkImage> m_swapChainImages;
 		std::vector<VkImageView> m_swapChainImageViews;
 		VkExtent2D m_swapChainExtent;
+
+		// queues stuff
+		VkQueue m_graphicsQueue;
+		uint32_t m_graphicsQueueFamily;
+
+		// frames in flight stuff
+		FrameData m_frames[FRAMES_IN_FLIGHT];
+
 	};
 }
