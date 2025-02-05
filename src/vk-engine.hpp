@@ -2,6 +2,7 @@
 
 #include <vk-types.hpp>
 
+
 struct SDL_Window;
 
 namespace vr {
@@ -16,9 +17,9 @@ namespace vr {
 		void Cleanup();
 
 	private:
-		bool m_isInitialized;
-		int m_frameNumber;
-		bool m_stopRendering;
+		bool       m_isInitialized;
+		int        m_frameNumber;
+		bool       m_stopRendering;
 		VkExtent2D m_windowExtent;
 
 		SDL_Window *m_window;

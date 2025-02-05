@@ -12,8 +12,7 @@
 
 using namespace vr;
 
-
-VulkanEngine::VulkanEngine() {
+VulkanEngine::VulkanEngine() : m_isInitialized(false), m_frameNumber(0), m_stopRendering(false), m_windowExtent{800, 800} {
 	Init();
 }
 
@@ -85,5 +84,5 @@ void VulkanEngine::Run() {
 
 
 void VulkanEngine::Draw() {
-	std::cout << "Vulkan engine draw\n";
+
 }
