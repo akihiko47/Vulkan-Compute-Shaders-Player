@@ -1,5 +1,10 @@
 add_executable(VulkanRenderer
-    main.cpp)
+    main.cpp
+    vk-engine.cpp
+    vk-engine.hpp
+    vk-types.hpp
+    vk-initializers.cpp
+    vk-initializers.hpp)
 
 target_include_directories(VulkanRenderer PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 

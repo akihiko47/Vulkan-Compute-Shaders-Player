@@ -38,7 +38,6 @@ target_include_directories(sdl2 INTERFACE ${sdl2_DIR}/include/SDL2 ${sdl2_image_
 target_link_directories(sdl2 INTERFACE ${sdl2_DIR}/lib ${sdl2_image_DIR}/lib)
 endif()
 
-
 add_library(imgui STATIC)
 target_include_directories(imgui PUBLIC imgui)
 target_sources(imgui PRIVATE 

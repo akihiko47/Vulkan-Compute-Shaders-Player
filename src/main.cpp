@@ -1,7 +1,7 @@
-#include <iostream>
+#include "vk-engine.hpp"
 
-int main() {
-    std::cout << "Hello World!\n";
+int main(int argc, char *argv[]) {
+    vr::VulkanEngine engine;
 
     return 0;
 }
