@@ -6,6 +6,8 @@ add_executable(VulkanRenderer
     vk-initializers.cpp
     vk-initializers.hpp)
 
+set_property(TARGET VulkanRenderer PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:VulkanRenderer>")
+
 target_include_directories(VulkanRenderer PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_link_libraries(VulkanRenderer vkbootstrap vma glm tinyobjloader imgui stb_image)

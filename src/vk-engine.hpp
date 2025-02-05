@@ -2,6 +2,8 @@
 
 #include <vk-types.hpp>
 
+struct SDL_Window;
+
 namespace vr {
 	class VulkanEngine {
 	public:
@@ -19,7 +21,6 @@ namespace vr {
 		bool m_stopRendering;
 		VkExtent2D m_windowExtent;
 
-		struct SDL_Window;
 		SDL_Window *m_window;
 	};
 }
