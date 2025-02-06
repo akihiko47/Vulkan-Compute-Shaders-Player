@@ -3,7 +3,8 @@ add_executable(VulkanRenderer
     vk-engine.cpp
     vk-engine.hpp
     vk-types.hpp
-    vk-initializers.hpp)
+    vk-initializers.hpp
+    vk-images.hpp)
 
 set_property(TARGET VulkanRenderer PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:VulkanRenderer>")
 

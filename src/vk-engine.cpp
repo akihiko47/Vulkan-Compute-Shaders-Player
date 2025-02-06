@@ -7,6 +7,7 @@
 
 #include <vk-initializers.hpp>
 #include <vk-types.hpp>
+#include <vk-images.hpp>
 
 #include <chrono>
 #include <thread>
@@ -46,8 +47,12 @@ void VulkanEngine::Cleanup() {
 	if (m_isInitialized) {
 		vkDeviceWaitIdle(m_device);
 
-		for (auto frame : m_frames) {
+		for (auto &frame : m_frames) {
 			vkDestroyCommandPool(m_device, frame.commandPool, nullptr);
+
+			vkDestroyFence(m_device, frame.renderFence, nullptr);
+			vkDestroySemaphore(m_device, frame.renderSemaphore, nullptr);
+			vkDestroySemaphore(m_device, frame.swapchainSemaphore, nullptr);
 		}
 
 		DestroySwapChain();
@@ -166,7 +171,7 @@ void VulkanEngine::DestroySwapChain() {
 	vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
 
 	// deletes images as well
-	for (auto swapChainImageView : m_swapChainImageViews) {
+	for (auto &swapChainImageView : m_swapChainImageViews) {
 		vkDestroyImageView(m_device, swapChainImageView, nullptr);
 	}
 }
@@ -189,7 +194,18 @@ void VulkanEngine::InitCommands() {
 
 
 void VulkanEngine::InitSyncStructures() {
+	// create fence to controll cpu between frames
+	// fence must be in signalled state at start
+	// and 2 semaphores to sync gpu in one frame
+	
+	VkFenceCreateInfo fenceCreateInfo = vkinit::FenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
+	VkSemaphoreCreateInfo semaphoreCreateInfo = vkinit::SemaphoreCreateInfo();
 
+	for (auto &frame : m_frames) {
+		VK_CHECK(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &frame.renderFence));
+		VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &frame.swapchainSemaphore));
+		VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &frame.renderSemaphore));
+	}
 }
 
 
@@ -225,5 +241,63 @@ void VulkanEngine::Run() {
 
 
 void VulkanEngine::Draw() {
+	// wait untill gpu has finished rendering the last frame
+	// we can wait no more than 1 second
+	VK_CHECK(vkWaitForFences(m_device, 1, &GetCurrentFrame().renderFence, true, 1000000000));
 
+	// reset fence so that we can wait for it in next frame
+	VK_CHECK(vkResetFences(m_device, 1, &GetCurrentFrame().renderFence));
+
+	// get image index from swapchain
+	uint32_t imageIndex;
+	VK_CHECK(vkAcquireNextImageKHR(m_device, m_swapChain, 1000000000, GetCurrentFrame().swapchainSemaphore, nullptr, &imageIndex));
+
+	// reset command buffer (copy because it is just pointer)
+	VkCommandBuffer commandBuffer = GetCurrentFrame().mainCommandBuffer;
+	VK_CHECK(vkResetCommandBuffer(commandBuffer, 0));
+
+	// begin recording
+	VkCommandBufferBeginInfo cmdBeginInfo = vkinit::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cmdBeginInfo));
+
+	// make swapchain image writeable
+	vkutils::TransitionImageLayout(commandBuffer, m_swapChainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
+	// clear image
+	VkClearColorValue clearValue;
+	float flash = std::abs(std::sin(m_frameNumber / 120.f));
+	clearValue = {{ 0.0f, 0.0f, flash, 1.0f }};
+
+	VkImageSubresourceRange clearRange = vkinit::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
+
+	vkCmdClearColorImage(commandBuffer, m_swapChainImages[imageIndex], VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+
+	// make swapchain image presentable
+	vkutils::TransitionImageLayout(commandBuffer, m_swapChainImages[imageIndex], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+	// end recording
+	VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+	// submit command buffer to queue
+	VkCommandBufferSubmitInfo cmdInfo = vkinit::CommandBufferSubmitInfo(commandBuffer);
+
+	VkSemaphoreSubmitInfo waitInfo = vkinit::SemaphoreSubmitInfo(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, GetCurrentFrame().swapchainSemaphore);
+	VkSemaphoreSubmitInfo signalInfo = vkinit::SemaphoreSubmitInfo(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, GetCurrentFrame().renderSemaphore);
+
+	VkSubmitInfo2 submit = vkinit::SubmitInfo(&cmdInfo, &signalInfo, &waitInfo);
+	VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submit, GetCurrentFrame().renderFence));
+
+	// resent rendered image
+	VkPresentInfoKHR presentInfo{};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentInfo.pSwapchains = &m_swapChain;
+	presentInfo.swapchainCount = 1;
+	presentInfo.pWaitSemaphores = &GetCurrentFrame().renderSemaphore;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pImageIndices = &imageIndex;
+
+	VK_CHECK(vkQueuePresentKHR(m_graphicsQueue, &presentInfo));
+
+	// increase number of frames
+	m_frameNumber++;
 }

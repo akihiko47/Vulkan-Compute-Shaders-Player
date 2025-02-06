@@ -7,8 +7,11 @@ const uint32_t FRAMES_IN_FLIGHT = 2;
 
 // structures and command needed to draw one frame in flight
 struct FrameData {
-	VkCommandPool commandPool;
+	VkCommandPool   commandPool;
 	VkCommandBuffer mainCommandBuffer;
+	VkSemaphore     swapchainSemaphore;
+	VkSemaphore     renderSemaphore;
+	VkFence         renderFence;
 };
 
 
