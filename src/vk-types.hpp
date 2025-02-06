@@ -28,3 +28,41 @@
             abort();                                                                  \
         }                                                                             \
     } while (0)
+
+namespace vr {
+	// structure to delete vulkan objects in correct order
+	struct DeletionQueue {
+		std::deque<std::function<void()>> deletors;
+
+		void PushFunction(std::function<void()> &&function) {
+			deletors.push_back(function);
+		}
+
+		void flush() {
+			for (auto it = deletors.rbegin(); it != deletors.rend(); ++it) {
+				(*it)();
+			}
+
+			deletors.clear();
+		}
+	};
+
+	// structures and commands needed to draw one frame in flight
+	struct FrameData {
+		VkCommandPool   commandPool;
+		VkCommandBuffer mainCommandBuffer;
+		VkSemaphore     swapchainSemaphore;
+		VkSemaphore     renderSemaphore;
+		VkFence         renderFence;
+		DeletionQueue   deletionQueue;
+	};
+
+	struct AllocatedImage {
+		VkImage image;
+		VkImageView imageView;
+		VmaAllocation allocation;
+		VkExtent3D imageExtent;
+		VkFormat imageFormat;
+	};
+}
+

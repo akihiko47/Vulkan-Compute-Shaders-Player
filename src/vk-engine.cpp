@@ -5,6 +5,9 @@
 
 #include <VkBootstrap.h>
 
+#define VMA_IMPLEMENTATION
+#include "vk_mem_alloc.h"
+
 #include <vk-initializers.hpp>
 #include <vk-types.hpp>
 #include <vk-images.hpp>
@@ -53,16 +56,11 @@ void VulkanEngine::Cleanup() {
 			vkDestroyFence(m_device, frame.renderFence, nullptr);
 			vkDestroySemaphore(m_device, frame.renderSemaphore, nullptr);
 			vkDestroySemaphore(m_device, frame.swapchainSemaphore, nullptr);
+
+			frame.deletionQueue.flush();
 		}
 
-		DestroySwapChain();
-
-		vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-		vkDestroyDevice(m_device, nullptr);
-
-		vkb::destroy_debug_utils_messenger(m_instance, m_debugMessenger);
-		vkDestroyInstance(m_instance, nullptr);
-		SDL_DestroyWindow(m_window);
+		m_mainDeletionQueue.flush();
 	}
 
 	spdlog::info("Renderer cleaned up");
@@ -84,6 +82,7 @@ void VulkanEngine::CreateSDLWindow() {
 		m_windowExtent.height,
 		windowFlags
 	);
+	m_mainDeletionQueue.PushFunction( [&]() {SDL_DestroyWindow(m_window); } );
 }
 
 
@@ -102,8 +101,12 @@ void VulkanEngine::InitVulkan() {
 	m_instance = vkbInstance.instance;
 	m_debugMessenger = vkbInstance.debug_messenger;
 
+	m_mainDeletionQueue.PushFunction( [&]() { vkDestroyInstance(m_instance, nullptr); } );
+	m_mainDeletionQueue.PushFunction( [&]() { vkb::destroy_debug_utils_messenger(m_instance, m_debugMessenger); } );
+
 	// surface creation
 	SDL_Vulkan_CreateSurface(m_window, m_instance, &m_surface);
+	m_mainDeletionQueue.PushFunction( [&]() { vkDestroySurfaceKHR(m_instance, m_surface, nullptr); } );
 
 	// physical device creation
 	VkPhysicalDeviceVulkan13Features features13{};
@@ -133,14 +136,59 @@ void VulkanEngine::InitVulkan() {
 
 	m_device = vkbDevice.device;
 
+	m_mainDeletionQueue.PushFunction( [&]() { vkDestroyDevice(m_device, nullptr); } );
+
 	// queues creation
 	m_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
 	m_graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
+
+	// allocator creation
+	VmaAllocatorCreateInfo allocatorInfo{};
+	allocatorInfo.physicalDevice = m_physicalDevice;
+	allocatorInfo.device = m_device;
+	allocatorInfo.instance = m_instance;
+	allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+	vmaCreateAllocator(&allocatorInfo, &m_allocator);
+	m_mainDeletionQueue.PushFunction( [&]() { vmaDestroyAllocator(m_allocator); } );
 }
 
 
 void VulkanEngine::InitSwapchain() {
 	CreateSwapChain(m_windowExtent.width, m_windowExtent.height);
+
+	// render image allocation
+	VkExtent3D renderImageExtent{};
+	renderImageExtent.width = m_windowExtent.width;
+	renderImageExtent.height = m_windowExtent.height;
+	renderImageExtent.depth = 1;
+
+	m_renderImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+	m_renderImage.imageExtent = renderImageExtent;
+
+	VkImageUsageFlags renderImageUsages{};
+	renderImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	renderImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	renderImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;          // for compute shader
+	renderImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; // to use in graphics pipeline
+
+	VkImageCreateInfo imgInfo = vkinit::ImageCreateInfo(m_renderImage.imageFormat, renderImageUsages, renderImageExtent);
+
+	//for the draw image, we want to allocate it from gpu local memory
+	VmaAllocationCreateInfo imgAllocInfo{};
+	imgAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	imgAllocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	// allocate and create image
+	vmaCreateImage(m_allocator, &imgInfo, &imgAllocInfo, &m_renderImage.image, &m_renderImage.allocation, nullptr);
+
+	// create image view
+	VkImageViewCreateInfo imgViewInfo = vkinit::ImageviewCreateInfo(m_renderImage.imageFormat, m_renderImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
+
+	// add to deletion queue
+	m_mainDeletionQueue.PushFunction([&]() {
+		vkDestroyImageView(m_device, m_renderImage.imageView, nullptr);
+		vmaDestroyImage(m_allocator, m_renderImage.image, m_renderImage.allocation);
+	});
 }
 
 
@@ -164,6 +212,8 @@ void VulkanEngine::CreateSwapChain(uint32_t width, uint32_t height) {
 	m_swapChain = vkbSwapchain.swapchain;
 	m_swapChainImages = vkbSwapchain.get_images().value();
 	m_swapChainImageViews = vkbSwapchain.get_image_views().value();
+
+	m_mainDeletionQueue.PushFunction( [&]() { DestroySwapChain(); } );
 }
 
 
@@ -245,6 +295,9 @@ void VulkanEngine::Draw() {
 	// we can wait no more than 1 second
 	VK_CHECK(vkWaitForFences(m_device, 1, &GetCurrentFrame().renderFence, true, 1000000000));
 
+	// delete per frame objects from previous frame
+	GetCurrentFrame().deletionQueue.flush();
+
 	// reset fence so that we can wait for it in next frame
 	VK_CHECK(vkResetFences(m_device, 1, &GetCurrentFrame().renderFence));
 
@@ -260,20 +313,32 @@ void VulkanEngine::Draw() {
 	VkCommandBufferBeginInfo cmdBeginInfo = vkinit::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cmdBeginInfo));
 
-	// make swapchain image writeable
-	vkutils::TransitionImageLayout(commandBuffer, m_swapChainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+	// configure render image extent
+	m_renderExtent.width = m_renderImage.imageExtent.width;
+	m_renderExtent.height = m_renderImage.imageExtent.height;
 
-	// clear image
+	// transition render image to writable layout
+	// we dont care about previous layout
+	vkutils::TransitionImageLayout(commandBuffer, m_renderImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
+	// clear render image
 	VkClearColorValue clearValue;
 	float flash = std::abs(std::sin(m_frameNumber / 120.f));
 	clearValue = {{ 0.0f, 0.0f, flash, 1.0f }};
 
 	VkImageSubresourceRange clearRange = vkinit::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
 
-	vkCmdClearColorImage(commandBuffer, m_swapChainImages[imageIndex], VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+	vkCmdClearColorImage(commandBuffer, m_renderImage.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
 
-	// make swapchain image presentable
-	vkutils::TransitionImageLayout(commandBuffer, m_swapChainImages[imageIndex], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	// transition render image and swapchain image to correct layouts for transfer
+	vkutils::TransitionImageLayout(commandBuffer, m_renderImage.image,           VK_IMAGE_LAYOUT_GENERAL,   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+	vkutils::TransitionImageLayout(commandBuffer, m_swapChainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+	// copy render image to swapchain image
+	vkutils::CopyImageToImage(commandBuffer, m_renderImage.image, m_swapChainImages[imageIndex], m_renderExtent, m_swapChainExtent);
+
+	// transition swap chain image to presentable layout
+	vkutils::TransitionImageLayout(commandBuffer, m_swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 	// end recording
 	VK_CHECK(vkEndCommandBuffer(commandBuffer));

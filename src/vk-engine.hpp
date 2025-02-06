@@ -5,20 +5,10 @@
 
 const uint32_t FRAMES_IN_FLIGHT = 2;
 
-// structures and command needed to draw one frame in flight
-struct FrameData {
-	VkCommandPool   commandPool;
-	VkCommandBuffer mainCommandBuffer;
-	VkSemaphore     swapchainSemaphore;
-	VkSemaphore     renderSemaphore;
-	VkFence         renderFence;
-};
-
-
 struct SDL_Window;
 
 namespace vr {
-	class VulkanEngine {
+	class VulkanEngine final {
 	public:
 		VulkanEngine();
 		~VulkanEngine();
@@ -74,5 +64,14 @@ namespace vr {
 		// frames in flight stuff
 		FrameData m_frames[FRAMES_IN_FLIGHT];
 
+		// deletion
+		DeletionQueue m_mainDeletionQueue;
+
+		// allocation
+		VmaAllocator m_allocator;
+
+		// render image
+		AllocatedImage m_renderImage;
+		VkExtent2D m_renderExtent;
 	};
 }
