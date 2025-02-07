@@ -42,11 +42,18 @@ namespace vr {
 		void InitPipelines();
 		void InitBackgroundPipelines();
 
+		// immediate command that are submitted outside of main render loop
+		void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)> &&function);
+
+		// imgui
+		void InitImgui();
+		void DrawImgui(VkCommandBuffer cmd, VkImageView targetImageView);
+
 	private:
-		bool       m_isInitialized;
-		int        m_frameNumber;
-		bool       m_stopRendering;
-		VkExtent2D m_windowExtent;
+		bool            m_isInitialized;
+		uint32_t        m_frameNumber;
+		bool            m_stopRendering;
+		VkExtent2D      m_windowExtent;
 
 		// sdl window stuff
 		SDL_Window *m_window;
@@ -88,7 +95,12 @@ namespace vr {
 		VkDescriptorSetLayout m_renderImageDescriptorLayout;
 
 		// pipelines
-		VkPipeline m_gradientPipeline;
+		VkPipeline       m_gradientPipeline;
 		VkPipelineLayout m_gradientPipelineLayout;
+
+		// immediate command that are submitted outside of main render loop
+		VkFence         m_immFence;
+		VkCommandBuffer m_immCommandBuffer;
+		VkCommandPool   m_immCommandPool;
 	};
 }
