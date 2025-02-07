@@ -2,24 +2,56 @@
 
 layout (local_size_x = 16, local_size_y = 16) in;
 
-layout(rgba16f,set = 0, binding = 0) uniform image2D image;
+layout (rgba16f, set = 0, binding = 0) uniform writeonly image2D outImage;
 
+
+#define TWO_PI 6.28318530718
+#define PI     3.14159265359
+
+
+float hash12(vec2 p) {
+	vec3 p3  = fract(vec3(p.xyx) * .1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+float atan2(in float y, in float x) {
+    bool s = (abs(x) > abs(y));
+    return mix(PI/2.0 - atan(x,y), atan(y,x), s);
+}
+
+struct squareData {
+    vec2 uv;    // uv of each sqr
+    vec2 id;    // id of each sqr
+    float d;    // distance from center
+    float r;    // polar angle
+};
+
+squareData squareCoords(vec2 uv){
+    squareData res;
+
+    res.uv = fract(uv);
+    res.uv = res.uv * 2.0 - 1.0;
+
+    res.id = floor(uv);
+    res.d = length(res.uv);
+    res.r = (atan2(-res.uv.x, -res.uv.y) / TWO_PI) + 0.5;
+
+    return res;
+}
 
 void main() 
 {
     ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
-	ivec2 size = imageSize(image);
+	ivec2 size = imageSize(outImage);
 
-    if(texelCoord.x < size.x && texelCoord.y < size.y)
-    {
-        vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
+    vec2 uv = vec2(float(texelCoord.x)/(size.x), float(texelCoord.y)/(size.y));
 
-        if(gl_LocalInvocationID.x != 0 && gl_LocalInvocationID.y != 0)
-        {
-            color.x = float(texelCoord.x)/(size.x);
-            color.y = float(texelCoord.y)/(size.y);	
-        }
-    
-        imageStore(image, texelCoord, color);
-    }
+    squareData sqr = squareCoords(uv * 20.0);
+
+    float noise = hash12(sqr.id);
+
+    vec4 color = vec4(noise.xxx, 1.0);
+
+    imageStore(outImage, texelCoord, color);
 }
