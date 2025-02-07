@@ -39,6 +39,7 @@ void VulkanEngine::Init() {
 	InitSwapchain();
 	InitCommands();
 	InitSyncStructures();
+	InitDescriptors();
 
 	m_isInitialized = true;
 
@@ -183,6 +184,7 @@ void VulkanEngine::InitSwapchain() {
 
 	// create image view
 	VkImageViewCreateInfo imgViewInfo = vkinit::ImageviewCreateInfo(m_renderImage.imageFormat, m_renderImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
+	VK_CHECK(vkCreateImageView(m_device, &imgViewInfo, nullptr, &m_renderImage.imageView));
 
 	// add to deletion queue
 	m_mainDeletionQueue.PushFunction([&]() {
@@ -256,6 +258,47 @@ void VulkanEngine::InitSyncStructures() {
 		VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &frame.swapchainSemaphore));
 		VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &frame.renderSemaphore));
 	}
+}
+
+
+void VulkanEngine::InitDescriptors() {
+	// create pool
+	std::vector<DescriptorAllocator::PoolSizeRatio> sizes {
+		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1}
+	};
+
+	m_globalDescriptorAllocator.InitPool(m_device, 10, sizes);
+
+	// get layout that matches pool
+	{
+		DescriptorLayoutBuilder builder;
+		builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+		m_renderImageDescriptorLayout = builder.Build(m_device, VK_SHADER_STAGE_COMPUTE_BIT);
+	}
+
+	// allocate descriptor sets
+	m_renderImageDescriptors = m_globalDescriptorAllocator.Allocate(m_device, m_renderImageDescriptorLayout);
+
+	// update descriptor sets
+	VkDescriptorImageInfo imgInfo{};
+	imgInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	imgInfo.imageView = m_renderImage.imageView;
+
+	VkWriteDescriptorSet renderImageWrite{};
+	renderImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	renderImageWrite.dstBinding = 0;
+	renderImageWrite.dstSet = m_renderImageDescriptors;
+	renderImageWrite.descriptorCount = 1;
+	renderImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	renderImageWrite.pImageInfo = &imgInfo;
+
+	vkUpdateDescriptorSets(m_device, 1, &renderImageWrite, 0, nullptr);
+
+	// add to destruction queue
+	m_mainDeletionQueue.PushFunction([&]() {
+		m_globalDescriptorAllocator.DestroyPool(m_device);
+		vkDestroyDescriptorSetLayout(m_device, m_renderImageDescriptorLayout, nullptr);
+	});
 }
 
 

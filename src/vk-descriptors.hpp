@@ -13,4 +13,23 @@ namespace vr {
 	private:
 		std::vector<VkDescriptorSetLayoutBinding> m_bindings;
 	};
+
+
+	class DescriptorAllocator final {
+	public:
+		struct PoolSizeRatio {
+			VkDescriptorType type;
+			float ratio;
+		};
+
+		VkDescriptorSet Allocate(VkDevice device, VkDescriptorSetLayout layout);
+
+		void InitPool(VkDevice device, uint32_t maxSets, const std::vector<PoolSizeRatio> &poolRatios);
+		void ClearDescriptors(VkDevice device);
+		void DestroyPool(VkDevice device);
+
+	private:
+
+		VkDescriptorPool m_pool;
+	};
 }
