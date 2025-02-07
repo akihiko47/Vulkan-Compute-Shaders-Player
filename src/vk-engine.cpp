@@ -523,33 +523,37 @@ void VulkanEngine::Run() {
             continue;
         }
 
-		// imgui
-		ImGui_ImplVulkan_NewFrame();
-		ImGui_ImplSDL2_NewFrame();
-		ImGui::NewFrame();
-
-		ImGuiIO& io = ImGui::GetIO();
-		
-		if (ImGui::Begin("Shaders selector")) {
-			ComputeEffect& effect = m_computeEffects[m_currentComputeEffect];
-
-			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-
-			ImGui::Text(effect.name);
-
-			ImGui::SliderInt("Effect Index", &m_currentComputeEffect, 0, m_computeEffects.size() - 1);
-
-			ImGui::SliderFloat4("data 1", (float*)&effect.data.data1, 0.0, 1.0);
-			ImGui::SliderFloat4("data 2", (float*)&effect.data.data2, 0.0, 1.0);
-			ImGui::SliderFloat4("data 3", (float*)&effect.data.data3, 0.0, 1.0);
-			ImGui::SliderFloat4("data 4", (float*)&effect.data.data4, 0.0, 1.0);
-		}
-		ImGui::End();
-
-		ImGui::Render();
+		AddImguiWindows();
 
         Draw();
 	}
+}
+
+
+void VulkanEngine::AddImguiWindows() {
+	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplSDL2_NewFrame();
+	ImGui::NewFrame();
+
+	ImGuiIO& io = ImGui::GetIO();
+
+	if (ImGui::Begin("Shaders selector")) {
+		ComputeEffect& effect = m_computeEffects[m_currentComputeEffect];
+
+		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+
+		ImGui::Text(effect.name);
+
+		ImGui::SliderInt("Effect Index", &m_currentComputeEffect, 0, m_computeEffects.size() - 1);
+
+		ImGui::SliderFloat4("data 1", (float*)&effect.data.data1, 0.0, 1.0);
+		ImGui::SliderFloat4("data 2", (float*)&effect.data.data2, 0.0, 1.0);
+		ImGui::SliderFloat4("data 3", (float*)&effect.data.data3, 0.0, 1.0);
+		ImGui::SliderFloat4("data 4", (float*)&effect.data.data4, 0.0, 1.0);
+	}
+	ImGui::End();
+
+	ImGui::Render();
 }
 
 

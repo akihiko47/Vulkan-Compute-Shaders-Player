@@ -51,6 +51,7 @@ namespace vr {
 
 		// imgui
 		void InitImgui();
+		void AddImguiWindows();
 		void DrawImgui(VkCommandBuffer cmd, VkImageView targetImageView);
 
 	private:
