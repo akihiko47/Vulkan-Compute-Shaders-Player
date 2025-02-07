@@ -19,6 +19,7 @@
 
 #include <chrono>
 #include <thread>
+#include <filesystem>
 
 
 const bool USE_VALIDATION_LAYERS = true;
@@ -26,7 +27,7 @@ const bool USE_VALIDATION_LAYERS = true;
 
 using namespace vr;
 
-VulkanEngine::VulkanEngine() : m_isInitialized(false), m_frameNumber(0), m_stopRendering(false), m_windowExtent{800, 800} {
+VulkanEngine::VulkanEngine() : m_isInitialized(false), m_frameNumber(0), m_stopRendering(false), m_windowExtent{800, 800}, m_currentComputeEffect(0) {
 	Init();
 }
 
@@ -325,52 +326,68 @@ void VulkanEngine::InitDescriptors() {
 
 
 void VulkanEngine::InitPipelines() {
-	InitBackgroundPipelines();
-}
 
+	for (auto &shaderName : shaderNames) {
+		// initialize effect struct
+		ComputeEffect effect{};
+		effect.name = shaderName.c_str();
 
-void VulkanEngine::InitBackgroundPipelines() {
-	
-	// create pipeline layout
-	VkPipelineLayoutCreateInfo computeLayout{};
-	computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	computeLayout.pSetLayouts = &m_renderImageDescriptorLayout;
-	computeLayout.setLayoutCount = 1;
+		// create pipeline layout
+		VkPipelineLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		layoutInfo.pSetLayouts = &m_renderImageDescriptorLayout;
+		layoutInfo.setLayoutCount = 1;
 
-	VK_CHECK(vkCreatePipelineLayout(m_device, &computeLayout, nullptr, &m_gradientPipelineLayout));
+		VkPushConstantRange pushConstants{};
+		pushConstants.offset = 0;
+		pushConstants.size = sizeof(ComputePushConstants);
+		pushConstants.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-	// create shader module
-	std::string shaderPath;
-	#ifdef SHADERS_DIR
-		const char* shadersDir = SHADERS_DIR;
-		shaderPath = std::string(shadersDir) + "/" + "gradient.comp.spv";
-	#endif
+		layoutInfo.pPushConstantRanges = &pushConstants;
+		layoutInfo.pushConstantRangeCount = 1;
 
-	VkShaderModule shaderModule;
-	if (!vkutils::LoadShaderModule(shaderPath.c_str(), m_device, &shaderModule)) {
-		spdlog::error("error when building the compute shader\n");
+		VK_CHECK(vkCreatePipelineLayout(m_device, &layoutInfo, nullptr, &effect.layout));
+
+		// create shader module
+		std::string shaderPath;
+		#ifdef SHADERS_DIR
+			const char* shadersDir = SHADERS_DIR;
+			shaderPath = std::string(shadersDir) + "/" + shaderName + ".comp.spv";
+		#endif
+
+		if (!std::filesystem::exists(shaderPath)) {
+			spdlog::error("no such shader: {}\n", shaderPath);
+		}
+
+		VkShaderModule shaderModule;
+		if (!vkutils::LoadShaderModule(shaderPath.c_str(), m_device, &shaderModule)) {
+			spdlog::error("error when building the compute shader\n");
+		}
+
+		// create pipeline
+		VkPipelineShaderStageCreateInfo stageInfo{};
+		stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		stageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+		stageInfo.module = shaderModule;
+		stageInfo.pName = "main";
+
+		VkComputePipelineCreateInfo computePipelineCreateInfo{};
+		computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+		computePipelineCreateInfo.layout = effect.layout;
+		computePipelineCreateInfo.stage = stageInfo;
+
+		VK_CHECK(vkCreateComputePipelines(m_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &effect.pipeline));
+
+		// add effect to effects list
+		m_computeEffects.push_back(effect);
+
+		// destroy shader module and sent pipeline to deletion queue
+		vkDestroyShaderModule(m_device, shaderModule, nullptr);
+		m_mainDeletionQueue.PushFunction([=]() {
+			vkDestroyPipelineLayout(m_device, effect.layout, nullptr);
+			vkDestroyPipeline(m_device, effect.pipeline, nullptr);
+		});
 	}
-
-	VkPipelineShaderStageCreateInfo stageInfo{};
-	stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	stageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-	stageInfo.module = shaderModule;
-	stageInfo.pName = "main";
-
-	VkComputePipelineCreateInfo computePipelineCreateInfo{};
-	computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-	computePipelineCreateInfo.layout = m_gradientPipelineLayout;
-	computePipelineCreateInfo.stage = stageInfo;
-
-	VK_CHECK(vkCreateComputePipelines(m_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &m_gradientPipeline));
-
-	// destroy shader module and sent pipeline to deletion queue
-	vkDestroyShaderModule(m_device, shaderModule, nullptr);
-
-	m_mainDeletionQueue.PushFunction([&]() {
-		vkDestroyPipelineLayout(m_device, m_gradientPipelineLayout, nullptr);
-		vkDestroyPipeline(m_device, m_gradientPipeline, nullptr);
-	});
 }
 
 
@@ -510,7 +527,25 @@ void VulkanEngine::Run() {
 		ImGui_ImplVulkan_NewFrame();
 		ImGui_ImplSDL2_NewFrame();
 		ImGui::NewFrame();
-		ImGui::ShowDemoWindow();
+
+		ImGuiIO& io = ImGui::GetIO();
+		
+		if (ImGui::Begin("Shaders selector")) {
+			ComputeEffect& effect = m_computeEffects[m_currentComputeEffect];
+
+			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+
+			ImGui::Text(effect.name);
+
+			ImGui::SliderInt("Effect Index", &m_currentComputeEffect, 0, m_computeEffects.size() - 1);
+
+			ImGui::SliderFloat4("data 1", (float*)&effect.data.data1, 0.0, 1.0);
+			ImGui::SliderFloat4("data 2", (float*)&effect.data.data2, 0.0, 1.0);
+			ImGui::SliderFloat4("data 3", (float*)&effect.data.data3, 0.0, 1.0);
+			ImGui::SliderFloat4("data 4", (float*)&effect.data.data4, 0.0, 1.0);
+		}
+		ImGui::End();
+
 		ImGui::Render();
 
         Draw();
@@ -549,12 +584,21 @@ void VulkanEngine::Draw() {
 	// we dont care about previous layout
 	vkutils::TransitionImageLayout(commandBuffer, m_renderImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
+
+
 	// use compute shader pipeline
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_gradientPipeline);
+	ComputeEffect &effect = m_computeEffects[m_currentComputeEffect];
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, effect.pipeline);
 
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_gradientPipelineLayout, 0, 1, &m_renderImageDescriptors, 0, nullptr);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, effect.layout, 0, 1, &m_renderImageDescriptors, 0, nullptr);
 
+	// push constants
+	vkCmdPushConstants(commandBuffer, effect.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &effect.data);
+
+	// execute command pipeline
 	vkCmdDispatch(commandBuffer, std::ceil(m_renderExtent.width / 16.0), std::ceil(m_renderExtent.height / 16.0), 1);
+
+
 
 	// transition render image and swapchain image to correct layouts for transfer
 	vkutils::TransitionImageLayout(commandBuffer, m_renderImage.image,           VK_IMAGE_LAYOUT_GENERAL,   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -562,6 +606,7 @@ void VulkanEngine::Draw() {
 
 	// copy render image to swapchain image
 	vkutils::CopyImageToImage(commandBuffer, m_renderImage.image, m_swapChainImages[imageIndex], m_renderExtent, m_swapChainExtent);
+
 
 
 	// transition swapchain image layout to render to it
@@ -572,6 +617,7 @@ void VulkanEngine::Draw() {
 
 	// transition swap chain image to presentable layout
 	vkutils::TransitionImageLayout(commandBuffer, m_swapChainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
 
 
 	// end recording

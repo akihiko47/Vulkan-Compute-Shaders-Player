@@ -17,6 +17,11 @@ namespace vr {
 		void Run();
 
 	private:
+		std::vector<std::string> shaderNames{
+			"blocks",
+			"blocks-red"
+		};
+
 		void Init();
 		void Draw();
 		void Cleanup();
@@ -40,7 +45,6 @@ namespace vr {
 
 		// pipelines
 		void InitPipelines();
-		void InitBackgroundPipelines();
 
 		// immediate command that are submitted outside of main render loop
 		void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)> &&function);
@@ -94,9 +98,9 @@ namespace vr {
 		VkDescriptorSet       m_renderImageDescriptors;
 		VkDescriptorSetLayout m_renderImageDescriptorLayout;
 
-		// pipelines
-		VkPipeline       m_gradientPipeline;
-		VkPipelineLayout m_gradientPipelineLayout;
+		// pipelines (this struct holds pipeline layout and pipeline)
+		std::vector<ComputeEffect> m_computeEffects;
+		int m_currentComputeEffect;
 
 		// immediate command that are submitted outside of main render loop
 		VkFence         m_immFence;

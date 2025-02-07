@@ -5,6 +5,14 @@ layout (local_size_x = 16, local_size_y = 16) in;
 layout (rgba16f, set = 0, binding = 0) uniform writeonly image2D outImage;
 
 
+layout( push_constant ) uniform constants {
+    vec4 data1;
+    vec4 data2;
+    vec4 data3;
+    vec4 data4;
+} pc;
+
+
 #define TWO_PI 6.28318530718
 #define PI     3.14159265359
 
@@ -27,7 +35,7 @@ struct squareData {
     float r;    // polar angle
 };
 
-squareData squareCoords(vec2 uv){
+squareData squareCoords(vec2 uv) {
     squareData res;
 
     res.uv = fract(uv);
@@ -40,18 +48,24 @@ squareData squareCoords(vec2 uv){
     return res;
 }
 
-void main() 
-{
+void main() {
+    // image coordinates
     ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
 	ivec2 size = imageSize(outImage);
 
+    // push constants
+    float mixValue = pc.data1.x;
+
+    // coordinates
     vec2 uv = vec2(float(texelCoord.x)/(size.x), float(texelCoord.y)/(size.y));
 
     squareData sqr = squareCoords(uv * 20.0);
 
-    float noise = hash12(sqr.id);
+    float noise1 = hash12(sqr.id);
+    float noise2 = hash12(sqr.id + 123456);
+    float noiseMix = mix(noise1, noise2, mixValue);
 
-    vec4 color = vec4(noise.xxx, 1.0);
+    vec4 color = vec4(noiseMix, 0.0, 0.0, 1.0);
 
     imageStore(outImage, texelCoord, color);
 }
