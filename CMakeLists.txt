@@ -26,6 +26,10 @@ endif()
 
 set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT VulkanRenderer)
 
+target_compile_definitions(VulkanRenderer PRIVATE 
+	SHADERS_DIR="${PROJECT_SOURCE_DIR}/shaders" 
+)
+
 
 # Shaders compilation
 find_program(GLSL_VALIDATOR glslangValidator HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32/)

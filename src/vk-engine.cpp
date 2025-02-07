@@ -9,6 +9,7 @@
 #include "vk_mem_alloc.h"
 
 #include <vk-initializers.hpp>
+#include <vk-pipelines.hpp>
 #include <vk-types.hpp>
 #include <vk-images.hpp>
 
@@ -40,6 +41,7 @@ void VulkanEngine::Init() {
 	InitCommands();
 	InitSyncStructures();
 	InitDescriptors();
+	InitPipelines();
 
 	m_isInitialized = true;
 
@@ -302,6 +304,56 @@ void VulkanEngine::InitDescriptors() {
 }
 
 
+void VulkanEngine::InitPipelines() {
+	InitBackgroundPipelines();
+}
+
+
+void VulkanEngine::InitBackgroundPipelines() {
+	
+	// create pipeline layout
+	VkPipelineLayoutCreateInfo computeLayout{};
+	computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	computeLayout.pSetLayouts = &m_renderImageDescriptorLayout;
+	computeLayout.setLayoutCount = 1;
+
+	VK_CHECK(vkCreatePipelineLayout(m_device, &computeLayout, nullptr, &m_gradientPipelineLayout));
+
+	// create shader module
+	std::string shaderPath;
+	#ifdef SHADERS_DIR
+		const char* shadersDir = SHADERS_DIR;
+		shaderPath = std::string(shadersDir) + "/" + "gradient.comp.spv";
+	#endif
+
+	VkShaderModule shaderModule;
+	if (!vkutils::LoadShaderModule(shaderPath.c_str(), m_device, &shaderModule)) {
+		spdlog::error("error when building the compute shader\n");
+	}
+
+	VkPipelineShaderStageCreateInfo stageInfo{};
+	stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	stageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	stageInfo.module = shaderModule;
+	stageInfo.pName = "main";
+
+	VkComputePipelineCreateInfo computePipelineCreateInfo{};
+	computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	computePipelineCreateInfo.layout = m_gradientPipelineLayout;
+	computePipelineCreateInfo.stage = stageInfo;
+
+	VK_CHECK(vkCreateComputePipelines(m_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &m_gradientPipeline));
+
+	// destroy shader module and sent pipeline to deletion queue
+	vkDestroyShaderModule(m_device, shaderModule, nullptr);
+
+	m_mainDeletionQueue.PushFunction([&]() {
+		vkDestroyPipelineLayout(m_device, m_gradientPipelineLayout, nullptr);
+		vkDestroyPipeline(m_device, m_gradientPipeline, nullptr);
+	});
+}
+
+
 void VulkanEngine::Run() {
 	SDL_Event e;
 	bool bQuit = false;
@@ -364,14 +416,12 @@ void VulkanEngine::Draw() {
 	// we dont care about previous layout
 	vkutils::TransitionImageLayout(commandBuffer, m_renderImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-	// clear render image
-	VkClearColorValue clearValue;
-	float flash = std::abs(std::sin(m_frameNumber / 120.f));
-	clearValue = {{ 0.0f, 0.0f, flash, 1.0f }};
+	// use compute shader pipeline
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_gradientPipeline);
 
-	VkImageSubresourceRange clearRange = vkinit::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_gradientPipelineLayout, 0, 1, &m_renderImageDescriptors, 0, nullptr);
 
-	vkCmdClearColorImage(commandBuffer, m_renderImage.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+	vkCmdDispatch(commandBuffer, std::ceil(m_renderExtent.width / 16.0), std::ceil(m_renderExtent.height / 16.0), 1);
 
 	// transition render image and swapchain image to correct layouts for transfer
 	vkutils::TransitionImageLayout(commandBuffer, m_renderImage.image,           VK_IMAGE_LAYOUT_GENERAL,   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);

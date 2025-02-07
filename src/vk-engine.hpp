@@ -38,6 +38,10 @@ namespace vr {
 		// descriptors
 		void InitDescriptors();
 
+		// pipelines
+		void InitPipelines();
+		void InitBackgroundPipelines();
+
 	private:
 		bool       m_isInitialized;
 		int        m_frameNumber;
@@ -82,5 +86,9 @@ namespace vr {
 		DescriptorAllocator   m_globalDescriptorAllocator;
 		VkDescriptorSet       m_renderImageDescriptors;
 		VkDescriptorSetLayout m_renderImageDescriptorLayout;
+
+		// pipelines
+		VkPipeline m_gradientPipeline;
+		VkPipelineLayout m_gradientPipelineLayout;
 	};
 }
