@@ -19,7 +19,7 @@ namespace vr {
 	private:
 		std::vector<std::string> shaderNames{
 			"blocks",
-			"blocks-red"
+			"fbm"
 		};
 
 		void Init();
@@ -54,11 +54,20 @@ namespace vr {
 		void AddImguiWindows();
 		void DrawImgui(VkCommandBuffer cmd, VkImageView targetImageView);
 
+		// time
+		void UpdateTime();
+
 	private:
 		bool            m_isInitialized;
 		uint32_t        m_frameNumber;
 		bool            m_stopRendering;
 		VkExtent2D      m_windowExtent;
+
+		// time
+		float m_totalTime = 0;
+		float m_lastFrameTime = 0;
+		float m_currentFrameTime = 0;
+		float m_deltaTime = 0;
 
 		// sdl window stuff
 		SDL_Window *m_window;

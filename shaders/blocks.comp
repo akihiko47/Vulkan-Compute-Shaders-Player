@@ -49,14 +49,14 @@ squareData squareCoords(vec2 uv) {
 }
 
 void main() {
-    // image coordinates
+    // IMAGE DATA
     ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
 	ivec2 size = imageSize(outImage);
 
-    // push constants
-    float mixValue = pc.data1.x;
+    // PUSH CONSTANTS
+    float mixValue = pc.data2.x;
 
-    // coordinates
+    // COORDS
     vec2 uv = vec2(float(texelCoord.x)/(size.x), float(texelCoord.y)/(size.y));
 
     squareData sqr = squareCoords(uv * 20.0);

@@ -523,6 +523,7 @@ void VulkanEngine::Run() {
             continue;
         }
 
+		UpdateTime();
 		AddImguiWindows();
 
         Draw();
@@ -546,14 +547,24 @@ void VulkanEngine::AddImguiWindows() {
 
 		ImGui::SliderInt("Effect Index", &m_currentComputeEffect, 0, m_computeEffects.size() - 1);
 
-		ImGui::SliderFloat4("data 1", (float*)&effect.data.data1, 0.0, 1.0);
-		ImGui::SliderFloat4("data 2", (float*)&effect.data.data2, 0.0, 1.0);
-		ImGui::SliderFloat4("data 3", (float*)&effect.data.data3, 0.0, 1.0);
-		ImGui::SliderFloat4("data 4", (float*)&effect.data.data4, 0.0, 1.0);
+		ImGui::ColorEdit4("data 2", (float*)&effect.data.data2);
+		ImGui::ColorEdit4("data 3", (float*)&effect.data.data3);
+		ImGui::ColorEdit4("data 4", (float*)&effect.data.data4);
 	}
 	ImGui::End();
 
 	ImGui::Render();
+}
+
+
+void VulkanEngine::UpdateTime() {
+	static auto startTime = std::chrono::high_resolution_clock::now();
+
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	m_currentFrameTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+	m_deltaTime = m_currentFrameTime - m_lastFrameTime;
+	m_totalTime += m_deltaTime;
+	m_lastFrameTime = m_currentFrameTime;
 }
 
 
@@ -597,6 +608,7 @@ void VulkanEngine::Draw() {
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, effect.layout, 0, 1, &m_renderImageDescriptors, 0, nullptr);
 
 	// push constants
+	effect.data.data1.x = m_totalTime;
 	vkCmdPushConstants(commandBuffer, effect.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &effect.data);
 
 	// execute command pipeline
