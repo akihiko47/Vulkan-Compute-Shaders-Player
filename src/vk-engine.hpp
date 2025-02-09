@@ -17,11 +17,6 @@ namespace vr {
 		void Run();
 
 	private:
-		std::vector<std::string> shaderNames{
-			"blocks",
-			"fbm"
-		};
-
 		void Init();
 		void Draw();
 		void Cleanup();

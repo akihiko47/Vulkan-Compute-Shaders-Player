@@ -326,11 +326,20 @@ void VulkanEngine::InitDescriptors() {
 
 
 void VulkanEngine::InitPipelines() {
+	std::string shadersPath;
+	#ifdef SHADERS_DIR
+		const char* shadersDir = SHADERS_DIR;
+		shadersPath = std::string(shadersDir) + "/";
+	#endif
 
-	for (auto &shaderName : shaderNames) {
+	for (auto &p : std::filesystem::recursive_directory_iterator(shadersPath)) {
+		if (!(p.path().extension() == ".spv")) {
+			continue;  // look only for compiled shaders
+		}
+
 		// initialize effect struct
 		ComputeEffect effect{};
-		effect.name = shaderName.c_str();
+		effect.name = p.path().stem().stem().string();
 
 		// create pipeline layout
 		VkPipelineLayoutCreateInfo layoutInfo{};
@@ -349,11 +358,7 @@ void VulkanEngine::InitPipelines() {
 		VK_CHECK(vkCreatePipelineLayout(m_device, &layoutInfo, nullptr, &effect.layout));
 
 		// create shader module
-		std::string shaderPath;
-		#ifdef SHADERS_DIR
-			const char* shadersDir = SHADERS_DIR;
-			shaderPath = std::string(shadersDir) + "/" + shaderName + ".comp.spv";
-		#endif
+		std::string shaderPath = p.path().string();
 
 		if (!std::filesystem::exists(shaderPath)) {
 			spdlog::error("no such shader: {}\n", shaderPath);
@@ -388,6 +393,7 @@ void VulkanEngine::InitPipelines() {
 			vkDestroyPipeline(m_device, effect.pipeline, nullptr);
 		});
 	}
+
 }
 
 
@@ -543,7 +549,7 @@ void VulkanEngine::AddImguiWindows() {
 
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
 
-		ImGui::Text(effect.name);
+		ImGui::Text(effect.name.c_str());
 
 		ImGui::SliderInt("Effect Index", &m_currentComputeEffect, 0, m_computeEffects.size() - 1);
 

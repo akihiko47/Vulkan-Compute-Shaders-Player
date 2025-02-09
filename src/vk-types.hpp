@@ -73,7 +73,7 @@ namespace vr {
 	};
 
 	struct ComputeEffect {
-		const char *name;
+		std::string name;
 		VkPipeline pipeline;
 		VkPipelineLayout layout;
 		ComputePushConstants data;
