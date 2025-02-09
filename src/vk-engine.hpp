@@ -29,6 +29,7 @@ namespace vr {
 		void InitSwapchain();
 		void CreateSwapChain(uint32_t width, uint32_t height);
 		void DestroySwapChain();
+		void RecreateSwapChain();
 		void InitCommands();
 		void InitSyncStructures();
 
@@ -80,6 +81,7 @@ namespace vr {
 		std::vector<VkImage>     m_swapChainImages;
 		std::vector<VkImageView> m_swapChainImageViews;
 		VkExtent2D               m_swapChainExtent;
+		bool                     m_resizeRequested = false;
 
 		// queues stuff
 		VkQueue  m_graphicsQueue;

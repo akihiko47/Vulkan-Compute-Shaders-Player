@@ -59,6 +59,7 @@ void VulkanEngine::Cleanup() {
 	if (m_isInitialized) {
 		vkDeviceWaitIdle(m_device);
 
+		m_mainDeletionQueue.flush();
 		for (auto &frame : m_frames) {
 			vkDestroyCommandPool(m_device, frame.commandPool, nullptr);
 
@@ -69,7 +70,15 @@ void VulkanEngine::Cleanup() {
 			frame.deletionQueue.flush();
 		}
 
-		m_mainDeletionQueue.flush();
+		DestroySwapChain();
+
+		vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+
+		vkDestroyDevice(m_device, nullptr);
+		vkb::destroy_debug_utils_messenger(m_instance, m_debugMessenger);
+		vkDestroyInstance(m_instance, nullptr);
+
+		SDL_DestroyWindow(m_window);
 	}
 
 	spdlog::info("Renderer cleaned up");
@@ -81,7 +90,7 @@ void VulkanEngine::CreateSDLWindow() {
 	// we want to use window and input systems from SDL
 	SDL_Init(SDL_INIT_VIDEO);
 
-	SDL_WindowFlags windowFlags = static_cast<SDL_WindowFlags>(SDL_WINDOW_VULKAN);
+	SDL_WindowFlags windowFlags = static_cast<SDL_WindowFlags>(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
 	m_window = SDL_CreateWindow(
 		"Vulkan Renderer",
@@ -91,7 +100,6 @@ void VulkanEngine::CreateSDLWindow() {
 		m_windowExtent.height,
 		windowFlags
 	);
-	m_mainDeletionQueue.PushFunction( [&]() {SDL_DestroyWindow(m_window); } );
 }
 
 
@@ -110,12 +118,8 @@ void VulkanEngine::InitVulkan() {
 	m_instance = vkbInstance.instance;
 	m_debugMessenger = vkbInstance.debug_messenger;
 
-	m_mainDeletionQueue.PushFunction( [&]() { vkDestroyInstance(m_instance, nullptr); } );
-	m_mainDeletionQueue.PushFunction( [&]() { vkb::destroy_debug_utils_messenger(m_instance, m_debugMessenger); } );
-
 	// surface creation
 	SDL_Vulkan_CreateSurface(m_window, m_instance, &m_surface);
-	m_mainDeletionQueue.PushFunction( [&]() { vkDestroySurfaceKHR(m_instance, m_surface, nullptr); } );
 
 	// physical device creation
 	VkPhysicalDeviceVulkan13Features features13{};
@@ -144,8 +148,6 @@ void VulkanEngine::InitVulkan() {
 	vkb::Device vkbDevice = deviceBuilder.build().value();
 
 	m_device = vkbDevice.device;
-
-	m_mainDeletionQueue.PushFunction( [&]() { vkDestroyDevice(m_device, nullptr); } );
 
 	// queues creation
 	m_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
@@ -222,8 +224,6 @@ void VulkanEngine::CreateSwapChain(uint32_t width, uint32_t height) {
 	m_swapChain = vkbSwapchain.swapchain;
 	m_swapChainImages = vkbSwapchain.get_images().value();
 	m_swapChainImageViews = vkbSwapchain.get_image_views().value();
-
-	m_mainDeletionQueue.PushFunction( [&]() { DestroySwapChain(); } );
 }
 
 
@@ -234,6 +234,23 @@ void VulkanEngine::DestroySwapChain() {
 	for (auto &swapChainImageView : m_swapChainImageViews) {
 		vkDestroyImageView(m_device, swapChainImageView, nullptr);
 	}
+}
+
+
+void VulkanEngine::RecreateSwapChain() {
+	vkDeviceWaitIdle(m_device);
+
+	DestroySwapChain();
+
+	int w, h;
+	SDL_GetWindowSize(m_window, &w, &h);
+	m_windowExtent.width = w;
+	m_windowExtent.height = h;
+
+	CreateSwapChain(m_windowExtent.width, m_windowExtent.height);
+
+	spdlog::info("Swap chain recreation");
+	m_resizeRequested = false;
 }
 
 
@@ -529,6 +546,10 @@ void VulkanEngine::Run() {
             continue;
         }
 
+		if (m_resizeRequested) {
+			RecreateSwapChain();
+		}
+
 		UpdateTime();
 		AddImguiWindows();
 
@@ -587,7 +608,10 @@ void VulkanEngine::Draw() {
 
 	// get image index from swapchain
 	uint32_t imageIndex;
-	VK_CHECK(vkAcquireNextImageKHR(m_device, m_swapChain, 1000000000, GetCurrentFrame().swapchainSemaphore, nullptr, &imageIndex));
+	VkResult result = vkAcquireNextImageKHR(m_device, m_swapChain, 1000000000, GetCurrentFrame().swapchainSemaphore, nullptr, &imageIndex);
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+		m_resizeRequested = true;
+	}
 
 	// reset command buffer (copy because it is just pointer)
 	VkCommandBuffer commandBuffer = GetCurrentFrame().mainCommandBuffer;
@@ -654,7 +678,7 @@ void VulkanEngine::Draw() {
 	VkSubmitInfo2 submit = vkinit::SubmitInfo(&cmdInfo, &signalInfo, &waitInfo);
 	VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submit, GetCurrentFrame().renderFence));
 
-	// resent rendered image
+	// present rendered image
 	VkPresentInfoKHR presentInfo{};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.pSwapchains = &m_swapChain;
@@ -663,7 +687,10 @@ void VulkanEngine::Draw() {
 	presentInfo.waitSemaphoreCount = 1;
 	presentInfo.pImageIndices = &imageIndex;
 
-	VK_CHECK(vkQueuePresentKHR(m_graphicsQueue, &presentInfo));
+	VkResult presentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
+	if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR) {
+		m_resizeRequested = true;
+	}
 
 	// increase number of frames
 	m_frameNumber++;

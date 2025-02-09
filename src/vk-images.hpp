@@ -54,7 +54,7 @@ namespace vkutils {
 		blitInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		blitInfo.srcImage = source;
 		blitInfo.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		blitInfo.filter = VK_FILTER_LINEAR;
+		blitInfo.filter = VK_FILTER_NEAREST;
 		blitInfo.regionCount = 1;
 		blitInfo.pRegions = &blitRegion;
 
