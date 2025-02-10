@@ -639,6 +639,7 @@ void VulkanEngine::Draw() {
 
 	// push constants
 	effect.data.data1.x = m_totalTime;
+	effect.data.data1.y = static_cast<float>(m_swapChainExtent.width) / m_swapChainExtent.height;
 	vkCmdPushConstants(commandBuffer, effect.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &effect.data);
 
 	// execute command pipeline

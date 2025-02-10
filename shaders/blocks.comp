@@ -52,14 +52,16 @@ void main() {
     // IMAGE DATA
     ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
 	ivec2 size = imageSize(outImage);
-
+   
     // PUSH CONSTANTS
+    float aspect = pc.data1.y;
     float mixValue = pc.data2.x;
 
     // COORDS
     vec2 uv = vec2(float(texelCoord.x)/(size.x), float(texelCoord.y)/(size.y));
+    vec2 uvAspect = vec2(uv.x * aspect, uv.y);
 
-    squareData sqr = squareCoords(uv * 20.0);
+    squareData sqr = squareCoords(uvAspect * 20.0);
 
     float noise1 = hash12(sqr.id);
     float noise2 = hash12(sqr.id + 123456);
