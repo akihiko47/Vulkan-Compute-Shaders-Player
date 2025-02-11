@@ -545,11 +545,7 @@ void VulkanEngine::Run() {
 
 			if (e.type == SDL_KEYDOWN) {
 				if (e.key.keysym.scancode == SDL_SCANCODE_F11) {
-					if (!m_isFullscreen) {
-						SDL_SetWindowFullscreen(m_window, SDL_WINDOW_FULLSCREEN_DESKTOP);
-					} else {
-						SDL_SetWindowFullscreen(m_window, 0);
-					}
+					SDL_SetWindowFullscreen(m_window, m_isFullscreen ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
 					m_isFullscreen = !m_isFullscreen;
 				}
 			}
