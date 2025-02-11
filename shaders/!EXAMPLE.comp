@@ -9,9 +9,10 @@ void main() {
 	ivec2 size = imageSize(outImage);
    
     // PUSH CONSTANTS
+    float time     = pc.data1.x;
     float aspect   = pc.data1.y;
+    vec2  mouse    = pc.data1.zw;
     float mixValue = pc.data2.x;
-    vec2 mouse     = pc.data1.zw;
 
     // COORDS
     vec2 uv = vec2(float(texelCoord.x)/(size.x), float(texelCoord.y)/(size.y));

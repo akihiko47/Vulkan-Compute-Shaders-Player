@@ -15,6 +15,7 @@ CTestTestfile.cmake
 _deps
 
 /build
+*.spv
 
 ### CMake Patch ###
 CMakeUserPresets.json
