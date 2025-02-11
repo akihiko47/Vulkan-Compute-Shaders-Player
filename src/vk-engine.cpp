@@ -168,9 +168,16 @@ void VulkanEngine::InitSwapchain() {
 	CreateSwapChain(m_windowExtent.width, m_windowExtent.height);
 
 	// render image allocation
+	SDL_DisplayMode dm;
+	if (SDL_GetDesktopDisplayMode(0, &dm) != 0) {
+		spdlog::critical("SDL_GetDesktopDisplayMode failed: {}", SDL_GetError());
+		exit(1);
+	}
+	spdlog::info("Rendering to image with resolution: width={}px, height={}px", dm.w, dm.h);
+
 	VkExtent3D renderImageExtent{};
-	renderImageExtent.width = m_windowExtent.width;
-	renderImageExtent.height = m_windowExtent.height;
+	renderImageExtent.width = dm.w;
+	renderImageExtent.height = dm.h;
 	renderImageExtent.depth = 1;
 
 	m_renderImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -533,6 +540,17 @@ void VulkanEngine::Run() {
 				}
 				if (e.window.event == SDL_WINDOWEVENT_RESTORED) {
 					m_stopRendering = false;
+				}
+			}
+
+			if (e.type == SDL_KEYDOWN) {
+				if (e.key.keysym.scancode == SDL_SCANCODE_F11) {
+					if (!m_isFullscreen) {
+						SDL_SetWindowFullscreen(m_window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+					} else {
+						SDL_SetWindowFullscreen(m_window, 0);
+					}
+					m_isFullscreen = !m_isFullscreen;
 				}
 			}
 

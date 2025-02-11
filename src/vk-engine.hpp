@@ -67,6 +67,7 @@ namespace vr {
 
 		// sdl window stuff
 		SDL_Window *m_window;
+		bool        m_isFullscreen;
 
 		// vulkan stuff
 		VkInstance               m_instance;
