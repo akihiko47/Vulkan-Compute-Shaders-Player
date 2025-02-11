@@ -548,6 +548,10 @@ void VulkanEngine::Run() {
 					SDL_SetWindowFullscreen(m_window, m_isFullscreen ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
 					m_isFullscreen = !m_isFullscreen;
 				}
+
+				if (e.key.keysym.scancode == SDL_SCANCODE_SPACE) {
+					m_showImgui = !m_showImgui;
+				}
 			}
 
 			// send SDL event to imgui for handling
@@ -591,6 +595,9 @@ void VulkanEngine::AddImguiWindows() {
 		ImGui::ColorEdit4("data 2", (float*)&effect.data.data2);
 		ImGui::ColorEdit4("data 3", (float*)&effect.data.data3);
 		ImGui::ColorEdit4("data 4", (float*)&effect.data.data4);
+
+		ImGui::Text("Press F11 for fullscreen mode");
+		ImGui::Text("Press SPACE to hide this window");
 	}
 	ImGui::End();
 
@@ -669,16 +676,14 @@ void VulkanEngine::Draw() {
 	vkutils::CopyImageToImage(commandBuffer, m_renderImage.image, m_swapChainImages[imageIndex], m_renderExtent, m_swapChainExtent);
 
 
-
 	// transition swapchain image layout to render to it
 	vkutils::TransitionImageLayout(commandBuffer, m_swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-	// draw imgui into swapchain image
-	DrawImgui(commandBuffer, m_swapChainImageViews[imageIndex]);
-
+	if (m_showImgui) {
+		// draw imgui into swapchain image
+		DrawImgui(commandBuffer, m_swapChainImageViews[imageIndex]);
+	}
 	// transition swap chain image to presentable layout
 	vkutils::TransitionImageLayout(commandBuffer, m_swapChainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
 
 
 	// end recording

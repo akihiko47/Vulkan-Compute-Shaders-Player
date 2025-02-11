@@ -114,5 +114,8 @@ namespace vr {
 		VkFence         m_immFence;
 		VkCommandBuffer m_immCommandBuffer;
 		VkCommandPool   m_immCommandPool;
+
+		// imgui
+		bool m_showImgui = true;
 	};
 }
