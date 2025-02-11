@@ -1,0 +1,32 @@
+#version 460
+#extension GL_ARB_shading_language_include : require  // enable include
+
+#include "utils/setup.glsl"  // setup bindings and push constants
+
+void main() {
+    // IMAGE DATA
+    ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 size = imageSize(outImage);
+   
+    // PUSH CONSTANTS
+    float aspect   = pc.data1.y;
+    float mixValue = pc.data2.x;
+    vec2 mouse     = pc.data1.zw;
+
+    // COORDS
+    vec2 uv = vec2(float(texelCoord.x)/(size.x), float(texelCoord.y)/(size.y));
+    uv.y = 1.0 - uv.y;  // flip y coordinate for standart setup
+
+    vec2 uvAspect = vec2(uv.x * aspect, uv.y);
+
+    mouse.x *= aspect;  // we need aspect ratio corrected mouse position to use it with aspect uv's
+
+    // INITIAL COLOR
+    vec3 col = vec3(0);
+
+    // MAIN PROGRAM
+    col.xy += uvAspect;                           // display aspect ratio corrected uv's
+    col += step(length(mouse - uvAspect), 0.05);  // add mouse circle
+
+    imageStore(outImage, texelCoord, vec4(col, 1.0));
+}

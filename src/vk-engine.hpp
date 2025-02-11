@@ -117,5 +117,9 @@ namespace vr {
 
 		// imgui
 		bool m_showImgui = true;
+
+		// mouse
+		int m_mouseX;
+		int m_mouseY;
 	};
 }

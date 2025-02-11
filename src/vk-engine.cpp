@@ -554,6 +554,10 @@ void VulkanEngine::Run() {
 				}
 			}
 
+			if (e.type == SDL_MOUSEMOTION) {
+				SDL_GetMouseState(&m_mouseX, &m_mouseY);
+			}
+
 			// send SDL event to imgui for handling
 			ImGui_ImplSDL2_ProcessEvent(&e);
 		}
@@ -659,8 +663,10 @@ void VulkanEngine::Draw() {
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, effect.layout, 0, 1, &m_renderImageDescriptors, 0, nullptr);
 
 	// push constants
-	effect.data.data1.x = m_totalTime;
-	effect.data.data1.y = static_cast<float>(m_swapChainExtent.width) / m_swapChainExtent.height;
+	effect.data.data1.x = m_totalTime;                                                                          // total time in seconds
+	effect.data.data1.y = static_cast<float>(m_swapChainExtent.width) / m_swapChainExtent.height;               // aspect ratio of window
+	effect.data.data1.z = std::clamp(static_cast<float>(m_mouseX) / m_windowExtent.width, 0.0f, 1.0f);          // mouse position x
+	effect.data.data1.w = std::clamp(1.0f - static_cast<float>(m_mouseY) / m_windowExtent.height, 0.0f, 1.0f);  // mouse position y
 	vkCmdPushConstants(commandBuffer, effect.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &effect.data);
 
 	// execute command pipeline
