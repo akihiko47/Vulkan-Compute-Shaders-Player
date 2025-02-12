@@ -1,0 +1,133 @@
+#version 460
+#extension GL_ARB_shading_language_include : require  // enable include
+
+#include "utils/setup.glsl"  // setup bindings and push constants
+#include "utils/functions.glsl"
+#include "utils/sdfs.glsl"
+
+void main() {
+    // IMAGE DATA
+    ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 size = imageSize(outImage);
+   
+    // PUSH CONSTANTS
+    float time      = pc.data1.x;
+    float aspect    = pc.data1.y;
+    vec2  mouse     = pc.data1.zw;
+    vec3  colDark   = pc.data2.rgb;
+    vec3  colMedium = pc.data3.rgb;
+    vec3  colBright = pc.data4.rgb;
+
+    // DEFAULT VALUES
+    colDark   = (colDark == vec3(0.0)) ? vec3(0.072, 0.176, 0.124) : colDark;
+    colMedium = (colMedium == vec3(0.0)) ? vec3(0.123, 0.627, 0.271) : colMedium;
+    colBright = (colBright == vec3(0.0)) ? vec3(0.534, 1.000, 0.685) : colBright;
+
+    // COORDS
+    vec2 uv = vec2(float(texelCoord.x)/(size.x), float(texelCoord.y)/(size.y));
+    uv.y = 1.0 - uv.y;  // flip y coordinate for standart setup
+
+    vec2 uvAspect = vec2(uv.x * aspect, uv.y);
+
+    mouse.x *= aspect;  // we need aspect ratio corrected mouse position to use it with aspect uv's
+
+    vec2 uvNorm = uv * 2.0 - 1.0;
+    uvNorm.x *= aspect;
+                
+    float r = length(uvNorm);
+    float a = (atan(-uvNorm.x, -uvNorm.y) / TWO_PI) + 0.5;
+
+    vec2 uvNormR = rotate(uvNorm, time);                        // rotated normalized uv
+    float ra = (atan(-uvNormR.x, -uvNormR.y) / TWO_PI) + 0.5;  // rotated angle
+
+    // INITIAL COLOR
+    vec3 col = vec3(0);
+
+    // main circle
+    float mainCircleR = 0.8;
+    float sdMainCircle = sdCircle(uvNorm, mainCircleR);
+    vec3 mainCircle = (smoothstep(0.01, 0.0, sdMainCircle) - smoothstep(0.0, -0.01, sdMainCircle)).xxx;
+    col += mainCircle * colBright;
+
+    // inner glow
+    float glowInner = clamp01(cos(r * PI * 0.6)) * float(r < mainCircleR);
+    col += glowInner * colDark * 1.5;
+
+    // outer glow
+    float glowOuter = clamp01(0.005 / sdMainCircle);
+    col += glowOuter * colBright * (1 - mainCircle);
+
+    // dot center
+    float dotCenter = smoothstep(0.001, 0.0, sdCircle(uvNorm, 0.01));
+    col += dotCenter * colBright;
+
+    // rotating line
+    float rotLine = (smoothstep(1.0, 0.995, ra) - smoothstep(0.995, 0.99, ra)) * float(r <= mainCircleR) * float(1 - mainCircle) * float(1 - dotCenter);
+    col += rotLine * colBright;
+
+    // gradient behind line
+    float gradLine = clamp01(smoothstep(0.55, 0.995, ra) * float(r <= mainCircleR) * float(1 - mainCircle) * float(1 - dotCenter));
+    col += gradLine * colMedium * 0.15;
+
+    // cross
+    vec2 uvCross = rotate(uvNorm, PI / 4);
+    float dfcross = min(abs(uvCross).x, abs(uvCross).y);
+    float cross = step(dfcross, 0.003) * float(r <= mainCircleR);
+    col += cross * colDark * 1.2;
+
+    // lines
+    float lines = step((sin(r * PI * 14.4) + 1) * 0.5, 0.01) * float(r <= mainCircleR);
+    col += lines * colDark;
+
+    // noise background
+    vec2 uvNoise = uvNorm;
+    uvNoise.y += time * 0.03;
+    float noise = ((sin(uvNoise.x * PI * 3.5) + 1) * 0.5) * ((cos(uvNoise.y * PI * 3.0) + 1) * 0.5) +
+                    ((sin(uvNoise.x * PI * 4.0) + 1) * 0.5) * ((cos(uvNoise.y * PI * 6.0) + 1) * 0.5) * 0.7 +
+                    ((sin(uvNoise.x * PI * 12.0) + 1) * 0.5) * ((cos(uvNoise.y * PI * 16.0) + 1) * 0.5) * 0.4 +
+                    ((sin(uvNoise.x * PI * 15.0) + 1) * 0.5) * ((cos(uvNoise.y * PI * 25.0) + 1) * 0.5) * 0.1;
+    noise = (step(noise, 0.5) - step(noise, 0.45)) * float(r <= mainCircleR);
+    col += noise * colDark;
+
+    // edge strips
+    float stripsWave = 1 - (smoothstep(0.0, 0.05, ra) - smoothstep(0.95, 1.0, ra));
+    float strips = step(sin(a * PI * 180.0) * 0.5 + 0.5, 0.04) * float(r > mainCircleR) * float(r < mainCircleR + 0.03 + stripsWave * 0.05) * float(1 - mainCircle);
+    col += strips * colMedium;
+
+    // triangles
+    float dspt = (sin(time * 3.0) * 0.5 + 0.5) * 0.035;  // move triangles with time
+    float triangles =  
+        //             edge smoothnes                           displacement from center               rotation    size
+        smoothstep(0.005, 0.0, sdTriangle(rotate(vec2(uvNorm.x, uvNorm.y - mainCircleR + 0.05 + dspt), PI       ), 0.03)) +
+        smoothstep(0.005, 0.0, sdTriangle(rotate(vec2(uvNorm.x, uvNorm.y + mainCircleR - 0.05 - dspt), 0.0      ), 0.03)) +
+        smoothstep(0.005, 0.0, sdTriangle(rotate(vec2(uvNorm.x - mainCircleR + 0.05 + dspt, uvNorm.y), PI * -0.5 ), 0.03)) +
+        smoothstep(0.005, 0.0, sdTriangle(rotate(vec2(uvNorm.x + mainCircleR - 0.05 - dspt, uvNorm.y), PI *  0.5), 0.03)) ;
+    col += triangles * colBright;
+
+    // target cross
+    vec2 targetPos = vec2(sin(time * 0.25) * 0.3 + 0.15, cos(time * 0.1) * 0.3 + 0.15);
+    vec2 targetUV = rotate(uvNorm - targetPos, -time);
+    float dfTargetCross = min(abs(targetUV).x, abs(targetUV).y);
+    float targetCross = (smoothstep(0.011, 0.01, dfTargetCross) - smoothstep(0.004, 0.003, dfTargetCross)) * float(length(targetUV) < 0.03) * float(r < mainCircleR);
+    col += targetCross * colBright;
+
+    // target circle
+    float tCircleR = 0.02 + fract(time) * 0.13;
+    float tCircleDf = sdCircle(targetUV, 0.1);
+    float tCircle = smoothstep(tCircleR, tCircleR - 0.003, tCircleDf) - smoothstep(tCircleR - 0.005, tCircleR - 0.05, tCircleDf);
+
+    tCircle *= (1.0 - pow(fract(time), 0.5));   // fade at the end
+    tCircle *= float(int(time) % 2 == 0.0);     // add pause
+    tCircle *= float(r < mainCircleR);          // only inside main circle
+    col += tCircle * colBright;
+
+    // glass reflection flare
+    float flare = pow(clamp01(uvNorm.y), 2.5) * float(r < mainCircleR);
+    col += flare * colBright * 0.2;
+
+    // bottom shadow
+    float shadow = pow(clamp01(-uvNorm.y), 2.5) * float(r < mainCircleR);
+    col -= shadow * 0.015;
+
+    imageStore(outImage, texelCoord, vec4(col, 1.0));
+}
