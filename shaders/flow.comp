@@ -1,0 +1,109 @@
+#version 460
+#extension GL_ARB_shading_language_include : require  // enable include
+
+#include "utils/setup.glsl"  // setup bindings and push constants
+#include "utils/functions.glsl"
+
+// here i am not using utils noise because we need to rotate it inside functions
+// and here i need to make time a global variable
+
+float time = pc.data1.x;
+
+// By IQ
+vec2 grad(ivec2 z, float rot){
+    int n = z.x + z.y * 11111;
+
+    n = (n << 13) ^ n;
+    n = (n * (n * n * 15731 + 789221) + 1376312589) >> 16;
+
+    n &= 7;
+    vec2 gr = vec2(n & 1, n >> 1) * 2.0 - 1.0;
+    vec2 res = (n >= 6) ? vec2(0.0, gr.x) :
+                    (n >= 4) ? vec2(gr.x, 0.0) :
+                    gr;
+    return rotate(res, time * rot);
+}
+
+// by IQ
+float noise(vec2 p, float rot){
+    ivec2 i = ivec2(floor(p));
+    vec2 f = fract(p);
+
+    vec2 u = f * f * (3.0 - 2.0 * f);
+
+    return mix(mix(dot(grad(i + ivec2(0, 0), rot), f - vec2(0.0, 0.0)),
+                   dot(grad(i + ivec2(1, 0), rot), f - vec2(1.0, 0.0)), u.x),
+               mix(dot(grad(i + ivec2(0, 1), rot), f - vec2(0.0, 1.0)),
+                   dot(grad(i + ivec2(1, 1), rot), f - vec2(1.0, 1.0)), u.x), u.y);
+}
+
+#define OCTAVES 6
+float fbm(vec2 uv){
+
+    float value = 0.0;
+    float amplitude = 0.8;
+    float rot = 1.2;
+
+    for(int i = 0; i < OCTAVES; i++){
+        value += amplitude * abs(noise(uv, rot));
+        uv *= 2.0;
+        amplitude *= 0.4;
+        rot *= 1.5;
+    }
+    return value;
+}
+
+void main() {
+    // IMAGE DATA
+    ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 size = imageSize(outImage);
+   
+    // PUSH CONSTANTS
+    float aspect   = pc.data1.y;
+    vec2  mouse    = pc.data1.zw;
+    vec3  col1     = pc.data2.rgb;
+    vec3  col2     = pc.data3.rgb;
+    vec3  col3     = pc.data4.rgb;
+
+    // DEFAULT VALUES
+    col1 = (col1 == vec3(0.0)) ? vec3(0.931, 0.960, 1.000) : col1;
+    col2 = (col2 == vec3(0.0)) ? vec3(0.057, 0.057, 0.176) : col2;
+    col3 = (col3 == vec3(0.0)) ? vec3(0.269, 0.435, 0.495) : col3;
+
+    // COORDS
+    vec2 uv = vec2(float(texelCoord.x)/(size.x), float(texelCoord.y)/(size.y));
+    uv.y = 1.0 - uv.y;  // flip y coordinate for standart setup
+
+    vec2 uvAspect = vec2(uv.x * aspect, uv.y);
+
+    mouse.x *= aspect;  // we need aspect ratio corrected mouse position to use it with aspect uv's
+
+    vec2 p = uvAspect * 5.0;
+
+    // INITIAL COLOR
+    vec3 col = vec3(0);
+
+    // NOISE
+    vec2 q;
+    q.x = fbm(p + vec2(6.9, 0.0));
+    q.y = fbm(p + vec2(5.2, 1.3));
+
+    float nse = fbm(p + q);
+
+    // CIRCLE
+    float dfC = length((uvAspect - mouse)) - 0.17 + fbm((uvAspect - mouse) * 3.0) * 0.1;
+    float circle = smoothstep(0.007, 0.003, dfC) - smoothstep(-0.003, -0.007, dfC);
+
+    // GLOW
+    float glow = clamp01(0.0005 / pow((dfC - 0.003), 2.0));
+    col += glow;
+
+    // FIRE
+    vec3 fire;
+    fire = mix(col1, col2, clamp01(pow(nse, 1.5)));
+    fire = pow(mix(fire, col3, q.y * q.y), vec3(4.0));
+    col += glow * fire * 8.0;
+
+
+    imageStore(outImage, texelCoord, vec4(col, 1.0));
+}
