@@ -4,7 +4,6 @@
 
 #include "utils/setup.glsl"  // setup bindings and push constants
 #include "utils/coordinates.glsl"
-#include "utils/hashes.glsl"
 #include "utils/sdfs.glsl"
 
 

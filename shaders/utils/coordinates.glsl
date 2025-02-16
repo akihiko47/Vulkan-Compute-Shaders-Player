@@ -87,3 +87,37 @@ cellData cellCoords(vec2 uv, float time) {
 
     return res;
 }
+
+
+float dfHex(vec2 p){
+    p = abs(p);
+    float vert = abs(p.x);
+    float hor = dot(p, normalize(vec2(1.0, 1.73)));
+    return max(vert, hor);
+}
+
+struct hexData{
+    vec2 uv;   // uv of each hex
+    vec2 id;   // id of each hex
+    float d;   // distance from edge
+    float r;   // polar angle
+};
+
+hexData hexCoords(vec2 uv) {
+    hexData res;
+
+    vec2 r = vec2(1, 1.73);
+    vec2 h = r * 0.5;
+
+    vec2 a = mod(uv,     r) - h;
+    vec2 b = mod(uv - h, r) - h;
+
+    vec2 gv = dot(a, a) < dot(b, b) ? a : b;
+
+    res.uv = gv;
+    res.d = 1.0 - dfHex(gv) * 2.0;
+    res.r = (atan(-gv.x, -gv.y) / TWO_PI) + 0.5;
+    res.id = uv - gv;
+
+    return res;
+}
