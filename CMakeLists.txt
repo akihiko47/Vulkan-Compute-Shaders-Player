@@ -1,7 +1,12 @@
 cmake_minimum_required (VERSION 3.11)
 
-project ("VulkanRenderer")
+project (ComputePlayer)
 set(CMAKE_CXX_STANDARD 17)
+
+
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 
 # Set a default build type if none was specified
@@ -21,12 +26,12 @@ add_subdirectory(src)
 
 
 if(MSVC)
- target_compile_options(VulkanRenderer PRIVATE "/MP")
+ target_compile_options(ComputePlayer PRIVATE "/MP")
 endif()
 
-set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT VulkanRenderer)
+set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ComputePlayer)
 
-target_compile_definitions(VulkanRenderer PRIVATE 
+target_compile_definitions(ComputePlayer PRIVATE 
 	SHADERS_DIR="${PROJECT_SOURCE_DIR}/shaders" 
 )
 

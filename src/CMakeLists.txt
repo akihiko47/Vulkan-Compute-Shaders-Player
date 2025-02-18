@@ -1,4 +1,4 @@
-add_executable(VulkanRenderer
+add_executable(ComputePlayer
     main.cpp
     vk-engine.cpp
     vk-engine.hpp
@@ -9,11 +9,11 @@ add_executable(VulkanRenderer
     vk-descriptors.cpp
     vk-pipelines.hpp)
 
-set_property(TARGET VulkanRenderer PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:VulkanRenderer>")
+set_property(TARGET ComputePlayer PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:ComputePlayer>")
 
-target_include_directories(VulkanRenderer PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(ComputePlayer PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
-target_link_libraries(VulkanRenderer vkbootstrap vma glm tinyobjloader imgui stb_image spdlog)
-target_link_libraries(VulkanRenderer Vulkan::Vulkan sdl2)
+target_link_libraries(ComputePlayer vkbootstrap vma glm tinyobjloader imgui stb_image spdlog)
+target_link_libraries(ComputePlayer Vulkan::Vulkan sdl2)
 
-add_dependencies(VulkanRenderer Shaders)
+add_dependencies(ComputePlayer Shaders)
