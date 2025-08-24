@@ -38,8 +38,8 @@ target_link_directories(sdl2 INTERFACE ${SDL2_DIR}/lib/x64 ${sdl2_image_DIR}/lib
 elseif (UNIX)
 find_package(SDL2 REQUIRED)
 find_package(SDL2_image REQUIRED)
-target_include_directories(sdl2 PRIVATE ${SDL2_INCLUDE_DIRS} ${SDL2_IMAGE_INCLUDE_DIRS})
-target_link_libraries(sdl2 PRIVATE ${SDL2_LIBRARIES} ${SDL2_IMAGE_LIBRARIES})
+target_include_directories(sdl2 INTERFACE ${SDL2_INCLUDE_DIRS} ${SDL2_IMAGE_INCLUDE_DIRS})
+target_link_libraries(sdl2 INTERFACE ${SDL2_LIBRARIES} ${SDL2_IMAGE_LIBRARIES})
 endif()
 
 target_link_libraries(sdl2 INTERFACE SDL2 SDL2main)
