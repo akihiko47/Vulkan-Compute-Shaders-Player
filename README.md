@@ -1,5 +1,4 @@
 # Vulkan compute shaders player
-A tool for quickly creating and viewing Vulkan compute shaders
 ![banner](images/banner1.jpg)
 ![banner](images/banner2.jpg)
 ![banner](images/banner3.jpg)
